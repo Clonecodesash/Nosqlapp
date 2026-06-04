@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Docker
+pgdata/
+
+# Alembic
+backend/alembic/versions/*.pyc
+backend/alembic/versions/__pycache__/
