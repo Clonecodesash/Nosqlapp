@@ -1,6 +1,7 @@
 from datetime import datetime
 import asyncio
 import json
+import aggregate_evaluator
 from mimetypes import guess_extension
 from uuid import uuid4
 from typing import List, Optional
@@ -627,36 +628,34 @@ async def delete_schema(
 
 @app.post("/api/exercises", response_model=ExerciseOut, status_code=status.HTTP_201_CREATED)
 async def create_exercise(
-    name: str = Form(...),
-    schema_id: int = Form(...),
-    answer: str = Form(...),
-    queries: str = Form(...),
+    payload: ExerciseCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new exercise under an ER schema (teacher only)."""
     require_teacher(current_user)
-    
+
     # Verify schema exists and belongs to current user
-    schema_result = await db.execute(select(ERSchema).where(ERSchema.id == schema_id))
+    schema_result = await db.execute(select(ERSchema).where(ERSchema.id == payload.er_schema_id))
     schema = schema_result.scalars().first()
     if schema is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schema not found")
     if schema.teacher_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Can only create exercises under your own schemas")
-    
-    parsed_queries = parse_queries_payload(queries)
-    
+
+    if not payload.queries:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Exercise must have at least one query")
+
     exercise = Exercise(
-        name=name,
-        er_schema_id=schema_id,
+        name=payload.name,
+        er_schema_id=payload.er_schema_id,
         teacher_id=current_user.id,
     )
     exercise.queries = [
         Query(query_text=query.query_text, hint=query.hint)
-        for query in parsed_queries
+        for query in payload.queries
     ]
-    exercise.answer = ExerciseAnswer(answer_text=answer)
+    exercise.answer = ExerciseAnswer(answer_text=payload.answer_text)
     
     db.add(exercise)
     await db.commit()
@@ -687,6 +686,30 @@ async def list_exercises(
     return [serialize_exercise(exercise, current_user) for exercise in result.scalars().all()]
 
 
+@app.get("/api/schemas/{schema_id}/exercises", response_model=List[ExerciseOut])
+async def list_exercises_for_schema(
+    schema_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all exercises belonging to a specific ER schema."""
+    schema_result = await db.execute(select(ERSchema).where(ERSchema.id == schema_id))
+    if schema_result.scalars().first() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schema not found")
+
+    options = [selectinload(Exercise.queries)]
+    if current_user.role == UserRole.teacher:
+        options.extend([selectinload(Exercise.answer), selectinload(Exercise.student_answer_logs)])
+
+    result = await db.execute(
+        select(Exercise)
+        .where(Exercise.er_schema_id == schema_id)
+        .options(*options)
+        .order_by(Exercise.id.desc())
+    )
+    return [serialize_exercise(exercise, current_user) for exercise in result.scalars().all()]
+
+
 @app.get("/api/exercises/{exercise_id}", response_model=ExerciseOut)
 async def get_exercise(
     exercise_id: int,
@@ -713,16 +736,16 @@ async def get_exercise(
 @app.put("/api/exercises/{exercise_id}", response_model=ExerciseOut)
 async def update_exercise(
     exercise_id: int,
-    name: str = Form(...),
-    answer: str = Form(...),
-    queries: str = Form(...),
+    payload: ExerciseCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an exercise (teacher only)."""
     require_teacher(current_user)
-    parsed_queries = parse_queries_payload(queries)
-    
+
+    if not payload.queries:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Exercise must have at least one query")
+
     result = await db.execute(
         select(Exercise)
         .where(Exercise.id == exercise_id)
@@ -739,16 +762,16 @@ async def update_exercise(
     if exercise.teacher_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner teacher can edit this exercise")
     
-    exercise.name = name
-    
+    exercise.name = payload.name
+
     if exercise.answer is None:
-        exercise.answer = ExerciseAnswer(answer_text=answer)
+        exercise.answer = ExerciseAnswer(answer_text=payload.answer_text)
     else:
-        exercise.answer.answer_text = answer
-    
+        exercise.answer.answer_text = payload.answer_text
+
     exercise.queries = [
         Query(query_text=query.query_text, hint=query.hint)
-        for query in parsed_queries
+        for query in payload.queries
     ]
     
     await db.commit()

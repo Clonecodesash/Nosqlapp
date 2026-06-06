@@ -272,16 +272,17 @@ function MainPage({ token, role, onLogout }) {
       setExplainErrorOpen(curr => ({ ...curr, [exerciseId]: !curr[exerciseId] }));
       return;
     }
-    setExplanationLoading(curr => ({ ...curr, [exerciseId]: true }));
+    setExplainErrorLoading(curr => ({ ...curr, [exerciseId]: true }));
     try {
-      const res = await fetch(`/api/exercises/${exerciseId}/explain-error`, { headers: authHeaders });
+      const res = await fetch(`/api/exercises/${exerciseId}/explain-error`, { method: 'POST', headers: authHeaders });
+      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
       setExplainErrorData(curr => ({ ...curr, [exerciseId]: data.explanation }));
       setExplainErrorOpen(curr => ({ ...curr, [exerciseId]: true }));
     } catch {
       setError('Could not fetch structural details');
     } finally {
-      setExplanationLoading(curr => ({ ...curr, [exerciseId]: false }));
+      setExplainErrorLoading(curr => ({ ...curr, [exerciseId]: false }));
     }
   };
 
@@ -293,9 +294,10 @@ function MainPage({ token, role, onLogout }) {
     }
     setLlmHintLoading(curr => ({ ...curr, [exerciseId]: true }));
     try {
-      const res = await fetch(`/api/exercises/${exerciseId}/conceptual-hint`, { headers: authHeaders });
+      const res = await fetch(`/api/exercises/${exerciseId}/give-hint`, { method: 'POST', headers: authHeaders });
+      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
-      setLlmHintData(curr => ({ ...curr, [exerciseId]: data.hint }));
+      setLlmHintData(curr => ({ ...curr, [exerciseId]: data.explanation }));
       setLlmHintOpen(curr => ({ ...curr, [exerciseId]: true }));
     } catch {
       setError('Could not fetch guidance details');
@@ -312,9 +314,10 @@ function MainPage({ token, role, onLogout }) {
     }
     setFixSchemaLoading(curr => ({ ...curr, [exerciseId]: true }));
     try {
-      const res = await fetch(`/api/exercises/${exerciseId}/fix-schema`, { headers: authHeaders });
+      const res = await fetch(`/api/exercises/${exerciseId}/fix-schema`, { method: 'POST', headers: authHeaders });
+      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
-      setFixSchemaData(curr => ({ ...curr, [exerciseId]: data.corrected_schema }));
+      setFixSchemaData(curr => ({ ...curr, [exerciseId]: data.explanation }));
       setFixSchemaOpen(curr => ({ ...curr, [exerciseId]: true }));
     } catch {
       setError('Could not generate correction paths');
@@ -331,9 +334,10 @@ function MainPage({ token, role, onLogout }) {
     }
     setExplainSuccessLoading(curr => ({ ...curr, [exerciseId]: true }));
     try {
-      const res = await fetch(`/api/exercises/${exerciseId}/explain-success`, { headers: authHeaders });
+      const res = await fetch(`/api/exercises/${exerciseId}/explain-success`, { method: 'POST', headers: authHeaders });
+      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
-      setExplainSuccessData(curr => ({ ...curr, [exerciseId]: data.validation }));
+      setExplainSuccessData(curr => ({ ...curr, [exerciseId]: data.explanation }));
       setExplainSuccessOpen(curr => ({ ...curr, [exerciseId]: true }));
     } catch {
       setError('Could not process success validation details');
@@ -666,7 +670,22 @@ function MainPage({ token, role, onLogout }) {
                 </div>
 
                 <article className="exercise-card">
+                  {selectedSchema && (
+                    brokenImages[selectedSchema.id] ? (
+                      <div className="image-fallback">
+                        This image format cannot be displayed. Upload JPG, PNG, WebP, or GIF.
+                      </div>
+                    ) : (
+                      <img
+                        className="exercise-media"
+                        src={selectedSchema.image}
+                        alt={selectedSchema.name}
+                        onError={() => setBrokenImages(current => ({ ...current, [selectedSchema.id]: true }))}
+                      />
+                    )
+                  )}
                   <div className="exercise-body">
+                    <p className="eyebrow">ER schema: {selectedSchema?.name}</p>
                     <ul className="query-list">
                       {selectedExercise.queries?.map((query, index) => (
                         <li key={query.id || index}>
@@ -726,7 +745,7 @@ function MainPage({ token, role, onLogout }) {
                                     onClick={() => handleExplainError(selectedExercise.id)}
                                     disabled={explainErrorLoading[selectedExercise.id]}
                                   >
-                                    {explainErrorLoading[selectedExercise.id] ? 'Analyzing Error...' : '🚨 Explain Error'}
+                                    {explainErrorLoading[selectedExercise.id] ? 'Analyzing Error...' : ' Explain Error'}
                                   </button>
 
                                   {/* Button 1B: Give Me a Hint */}
@@ -736,7 +755,7 @@ function MainPage({ token, role, onLogout }) {
                                     onClick={() => handleGiveHint(selectedExercise.id)}
                                     disabled={llmHintLoading[selectedExercise.id]}
                                   >
-                                    {llmHintLoading[selectedExercise.id] ? 'Generating Hint...' : '💡 Give Me a Hint'}
+                                    {llmHintLoading[selectedExercise.id] ? 'Generating Hint...' : ' Give Me a Hint'}
                                   </button>
 
                                   {/* Button 2: Fix My Schema */}
@@ -746,7 +765,7 @@ function MainPage({ token, role, onLogout }) {
                                     onClick={() => handleFixSchema(selectedExercise.id)}
                                     disabled={fixSchemaLoading[selectedExercise.id]}
                                   >
-                                    {fixSchemaLoading[selectedExercise.id] ? 'Rebuilding Layout...' : '🛠️ Fix My Schema'}
+                                    {fixSchemaLoading[selectedExercise.id] ? 'Rebuilding Layout...' : ' Fix My Schema'}
                                   </button>
                                 </>
                               ) : (
@@ -757,7 +776,7 @@ function MainPage({ token, role, onLogout }) {
                                   onClick={() => handleExplainSuccess(selectedExercise.id)}
                                   disabled={explainSuccessLoading[selectedExercise.id]}
                                 >
-                                  {explainSuccessLoading[selectedExercise.id] ? 'Validating Design...' : '🌟 Why is this correct?'}
+                                  {explainSuccessLoading[selectedExercise.id] ? 'Validating Design...' : ' Why is this correct?'}
                                 </button>
                               )}
 
@@ -773,14 +792,14 @@ function MainPage({ token, role, onLogout }) {
                             {/* Render Output Triggers */}
                             {explainErrorOpen[selectedExercise.id] && explainErrorData[selectedExercise.id] && (
                               <div className="review-box" style={{ borderColor: '#ef4444' }}>
-                                <strong>🚨 Error Structural Analysis:</strong>
+                                <strong> Error Structural Analysis:</strong>
                                 <pre style={{ whiteSpace: 'pre-wrap' }}>{explainErrorData[selectedExercise.id]}</pre>
                               </div>
                             )}
 
                             {llmHintOpen[selectedExercise.id] && llmHintData[selectedExercise.id] && (
                               <div className="review-box" style={{ borderColor: '#3b82f6' }}>
-                                <strong>💡 Architectural Hint Strategy:</strong>
+                                <strong> Architectural Hint Strategy:</strong>
                                 <pre style={{ whiteSpace: 'pre-wrap' }}>{llmHintData[selectedExercise.id]}</pre>
                               </div>
                             )}
