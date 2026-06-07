@@ -30,7 +30,7 @@ export async function getExercise(token, exerciseId) {
 }
 
 export async function createExercise(token, payload) {
-  const res = await fetch(`${BASE}/exercises/create`, {
+  const res = await fetch(`${BASE}/exercises`, {
     method: 'POST',
     headers: jsonHeaders(token),
     body: JSON.stringify(payload),
