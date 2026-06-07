@@ -112,30 +112,34 @@ export default function SolvePage({
           </div>
         </div>
 
-        {/* ── Bottom — answer box + results (full width) ── */}
-        {role === 'student' && (
-          <article className="exercise-card">
-            <div className="exercise-body">
-              <AnswerForm
-                value={answerText}
-                onChange={setAnswerText}
-                onSubmit={handleSubmit}
-                loading={submitting}
-              />
-              {evaluation && (
-                <>
-                  <EvaluationResult evaluation={evaluation} />
-                  <LLMButtons
-                    llm={llm}
-                    isCorrect={evaluation.isCorrect}
-                    onViewAnswer={handleViewAnswer}
-                    correctAnswer={correctAnswer}
-                  />
-                </>
-              )}
-            </div>
-          </article>
-        )}
+        {/* ── Bottom — answer box + results (full width) ──
+            Shown for everyone: students solve, teachers can test their own exercises. */}
+        <article className="exercise-card">
+          <div className="exercise-body">
+            {role === 'teacher' && (
+              <p className="eyebrow" style={{ marginBottom: 8 }}>
+                Teacher preview — submit a trial answer to test this exercise
+              </p>
+            )}
+            <AnswerForm
+              value={answerText}
+              onChange={setAnswerText}
+              onSubmit={handleSubmit}
+              loading={submitting}
+            />
+            {evaluation && (
+              <>
+                <EvaluationResult evaluation={evaluation} />
+                <LLMButtons
+                  llm={llm}
+                  isCorrect={evaluation.isCorrect}
+                  onViewAnswer={handleViewAnswer}
+                  correctAnswer={correctAnswer}
+                />
+              </>
+            )}
+          </div>
+        </article>
       </main>
     </div>
   );

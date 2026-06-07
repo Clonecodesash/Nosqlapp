@@ -825,7 +825,7 @@ async def submit_exercise_answer(
     db: AsyncSession = Depends(get_db),
 ):
     """Submit a student answer for an exercise."""
-    require_student(current_user)
+    # Both students and teachers may submit/evaluate, so teachers can test their own exercises.
     
     result = await db.execute(
         select(Exercise)
@@ -931,7 +931,7 @@ async def explain_error_briefly(
     db: AsyncSession = Depends(get_db),
 ):
     """LLM Button 1: Explain the error in student's answer."""
-    require_student(current_user)
+    # Both students and teachers may submit/evaluate, so teachers can test their own exercises.
     
     # Get latest answer log
     log_result = await db.execute(
@@ -982,7 +982,7 @@ async def give_conceptual_hint(
     db: AsyncSession = Depends(get_db),
 ):
     """LLM Button 2: Give a conceptual hint to guide student."""
-    require_student(current_user)
+    # Both students and teachers may submit/evaluate, so teachers can test their own exercises.
     
     # Get latest answer log
     log_result = await db.execute(
@@ -1033,7 +1033,7 @@ async def fix_schema(
     db: AsyncSession = Depends(get_db),
 ):
     """LLM Button 3: Generate corrected schema from student's answer."""
-    require_student(current_user)
+    # Both students and teachers may submit/evaluate, so teachers can test their own exercises.
     
     # Get latest answer log
     log_result = await db.execute(
@@ -1084,7 +1084,7 @@ async def explain_success(
     db: AsyncSession = Depends(get_db),
 ):
     """LLM Button 4: Explain why the answer is correct (for perfect submissions)."""
-    require_student(current_user)
+    # Both students and teachers may submit/evaluate, so teachers can test their own exercises.
     
     # Get latest answer log
     log_result = await db.execute(

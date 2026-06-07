@@ -82,7 +82,7 @@ class Query(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     query_text = Column(Text, nullable=False)              # e.g., "Find all orders placed by a specific user"
-    hint = Column(Text, nullable=True)                    # Optional hint provided by instructor
+    hint = Column(Text, nullable=True)                   #formal query representation provided by instructor
     exercise_id = Column(Integer, ForeignKey("exercises.id"), nullable=False, index=True)
 
     # Relationships

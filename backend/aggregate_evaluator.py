@@ -219,7 +219,7 @@ def action_give_conceptual_hint(student_answer: str, reference_answer: str, feed
         "NEVER provide code blocks or modified schemas. Instead, look at the reference structure "
         "and the student's errors, and give them a strategic design hint or puzzle-solving clue "
         "(e.g., 'Check if you nested a collection too deeply inside your main block' or "
-        "'Look at the order of fields in your root object'). Keep it under 75 words."
+        "'Look at the order of fields in your root object'). Keep it under  words."
     )
     
     prompt = (
