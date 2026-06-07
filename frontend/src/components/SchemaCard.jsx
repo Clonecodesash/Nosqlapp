@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function SchemaCard({ schema, role, onClick, onEdit }) {
+export default function SchemaCard({ schema, role, onClick, onEdit, onDelete }) {
   const [broken, setBroken] = useState(false);
 
   return (
@@ -24,13 +24,22 @@ export default function SchemaCard({ schema, role, onClick, onEdit }) {
         <div className="meta-row">
           <h3>{schema.name}</h3>
           {role === 'teacher' && (
-            <button
-              className="secondary-btn"
-              type="button"
-              onClick={e => { e.stopPropagation(); onEdit(schema); }}
-            >
-              Edit
-            </button>
+            <div className="row-actions">
+              <button
+                className="secondary-btn"
+                type="button"
+                onClick={e => { e.stopPropagation(); onEdit(schema); }}
+              >
+                Edit
+              </button>
+              <button
+                className="secondary-btn danger-btn"
+                type="button"
+                onClick={e => { e.stopPropagation(); onDelete(schema); }}
+              >
+                Delete
+              </button>
+            </div>
           )}
         </div>
       </div>

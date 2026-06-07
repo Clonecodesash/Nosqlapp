@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import QueryBlock from './QueryBlock';
 
 const emptyExerciseForm = { name: '', answer: '', queries: [{ queryText: '', hint: '' }] };
@@ -6,8 +6,12 @@ const emptySchemaForm   = { name: '', image: null };
 
 export default function TeacherSidebar({
   selectedSchema,
+  schemaToEdit,
+  exerciseToEdit,
   onSchemaSaved,
   onExerciseSaved,
+  onClearSchemaEdit,
+  onClearExerciseEdit,
 }) {
   // Schema form
   const [schemaForm,     setSchemaForm]     = useState(emptySchemaForm);
@@ -23,6 +27,15 @@ export default function TeacherSidebar({
   const [exSuccess,         setExSuccess]         = useState('');
   const [exLoading,         setExLoading]         = useState(false);
 
+  // Populate the relevant form when an Edit button is clicked in the list.
+  useEffect(() => {
+    if (schemaToEdit) startEditSchema(schemaToEdit);
+  }, [schemaToEdit]);
+
+  useEffect(() => {
+    if (exerciseToEdit) startEditExercise(exerciseToEdit);
+  }, [exerciseToEdit]);
+
   // ── Schema handlers ────────────────────────────────────────────────────────
   function startEditSchema(schema) {
     setEditingSchemaId(schema.id);
@@ -34,6 +47,7 @@ export default function TeacherSidebar({
   function resetSchemaForm() {
     setEditingSchemaId(null);
     setSchemaForm(emptySchemaForm);
+    onClearSchemaEdit?.();
   }
 
   async function handleSaveSchema(e) {
@@ -76,6 +90,7 @@ export default function TeacherSidebar({
   function resetExerciseForm() {
     setEditingExerciseId(null);
     setExerciseForm(emptyExerciseForm);
+    onClearExerciseEdit?.();
   }
 
   function updateQuery(index, field, value) {

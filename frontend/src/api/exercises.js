@@ -11,10 +11,10 @@ function jsonHeaders(token) {
 // ── Exercises ─────────────────────────────────────────────────────────────────
 
 export async function listExercises(token, schemaId = null) {
-  // Fix: was calling /api/schemas/:id/exercises which didn't exist on the backend.
-  // Now correctly calls /api/exercises?schema_id=X
+  // Per-schema listing uses the schema-scoped endpoint; the plain /exercises
+  // route ignores query params and would return every exercise.
   const url = schemaId
-    ? `${BASE}/exercises?schema_id=${schemaId}`
+    ? `${BASE}/schemas/${schemaId}/exercises`
     : `${BASE}/exercises`;
   const res = await fetch(url, { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to load exercises');

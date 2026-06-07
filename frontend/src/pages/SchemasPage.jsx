@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import Topbar from '../components/Topbar';
 import SchemaCard from '../components/SchemaCard';
 import TeacherSidebar from '../components/TeacherSidebar';
-import { listSchemas, createSchema, updateSchema } from '../api/schemas';
+import { listSchemas, createSchema, updateSchema, deleteSchema } from '../api/schemas';
 
 export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
   const [schemas, setSchemas] = useState([]);
   const [error,   setError]   = useState('');
+  const [editingSchema, setEditingSchema] = useState(null);
 
   useEffect(() => {
     loadSchemas();
@@ -26,7 +27,19 @@ export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
     } else {
       await createSchema(token, formData);
     }
+    setEditingSchema(null);
     await loadSchemas();
+  }
+
+  async function handleDeleteSchema(schema) {
+    if (!window.confirm(`Delete schema "${schema.name}"? This also deletes its exercises.`)) return;
+    try {
+      await deleteSchema(token, schema.id);
+      if (editingSchema?.id === schema.id) setEditingSchema(null);
+      await loadSchemas();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   return (
@@ -37,8 +50,10 @@ export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
         {role === 'teacher' && (
           <TeacherSidebar
             selectedSchema={null}
+            schemaToEdit={editingSchema}
             onSchemaSaved={handleSchemaSaved}
             onExerciseSaved={() => {}}
+            onClearSchemaEdit={() => setEditingSchema(null)}
           />
         )}
 
@@ -65,7 +80,8 @@ export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
                   schema={schema}
                   role={role}
                   onClick={() => onSelectSchema(schema)}
-                  onEdit={() => {}}
+                  onEdit={setEditingSchema}
+                  onDelete={handleDeleteSchema}
                 />
               ))}
             </div>

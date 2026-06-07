@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Topbar from '../components/Topbar';
 import ExerciseCard from '../components/ExerciseCard';
 import TeacherSidebar from '../components/TeacherSidebar';
-import { listExercises, createExercise, updateExercise } from '../api/exercises';
+import { listExercises, createExercise, updateExercise, deleteExercise } from '../api/exercises';
 
 export default function ExercisesPage({
   token,
@@ -14,6 +14,7 @@ export default function ExercisesPage({
 }) {
   const [exercises, setExercises] = useState([]);
   const [error,     setError]     = useState('');
+  const [editingExercise, setEditingExercise] = useState(null);
 
   useEffect(() => {
     loadExercises();
@@ -33,7 +34,19 @@ export default function ExercisesPage({
     } else {
       await createExercise(token, payload);
     }
+    setEditingExercise(null);
     await loadExercises();
+  }
+
+  async function handleDeleteExercise(exercise) {
+    if (!window.confirm(`Delete exercise "${exercise.name}"?`)) return;
+    try {
+      await deleteExercise(token, exercise.id);
+      if (editingExercise?.id === exercise.id) setEditingExercise(null);
+      await loadExercises();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   return (
@@ -44,8 +57,10 @@ export default function ExercisesPage({
         {role === 'teacher' && (
           <TeacherSidebar
             selectedSchema={schema}
+            exerciseToEdit={editingExercise}
             onSchemaSaved={() => {}}
             onExerciseSaved={handleExerciseSaved}
+            onClearExerciseEdit={() => setEditingExercise(null)}
           />
         )}
 
@@ -77,7 +92,8 @@ export default function ExercisesPage({
                   exercise={exercise}
                   role={role}
                   onClick={() => onSelectExercise(exercise)}
-                  onEdit={() => {}}
+                  onEdit={setEditingExercise}
+                  onDelete={handleDeleteExercise}
                 />
               ))}
             </div>

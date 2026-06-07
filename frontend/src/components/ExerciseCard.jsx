@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ExerciseCard({ exercise, role, onClick, onEdit }) {
+export default function ExerciseCard({ exercise, role, onClick, onEdit, onDelete }) {
   return (
     <article
       className="exercise-card exercise-card-clickable"
@@ -14,13 +14,22 @@ export default function ExerciseCard({ exercise, role, onClick, onEdit }) {
               {exercise.queries?.length || 0} queries
             </span>
             {role === 'teacher' && (
-              <button
-                className="secondary-btn"
-                type="button"
-                onClick={e => { e.stopPropagation(); onEdit(exercise); }}
-              >
-                Edit
-              </button>
+              <>
+                <button
+                  className="secondary-btn"
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onEdit(exercise); }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="secondary-btn danger-btn"
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onDelete(exercise); }}
+                >
+                  Delete
+                </button>
+              </>
             )}
           </div>
         </div>
