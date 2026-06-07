@@ -8,21 +8,14 @@
 
 ## Quick Start
 
-1. **Start backend and database:**
+1. **Start  project:**
    ```sh
    cd infra
    docker-compose up --build
    ```
-2. **Run frontend:**
-   ```sh
-   cd frontend
-   npm install
-   npm run dev
-   ```
 
 ## Authentication
 - Register/login as student or teacher.
-- After login, main page matches `querymodeelingpage.html`.
 
 ## Migrations
 - Use Alembic for DB migrations:
