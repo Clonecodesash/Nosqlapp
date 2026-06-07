@@ -5,6 +5,7 @@ const emptyExerciseForm = { name: '', answer: '', queries: [{ queryText: '', hin
 const emptySchemaForm   = { name: '', image: null };
 
 export default function TeacherSidebar({
+  mode = 'schema',
   selectedSchema,
   schemaToEdit,
   exerciseToEdit,
@@ -137,6 +138,8 @@ export default function TeacherSidebar({
     <aside className="panel">
 
       {/* ── Schema form ── */}
+      {mode === 'schema' && (
+        <>
       <div className="section-title">
         <div>
           <h2>{editingSchemaId ? 'Edit schema' : 'Create schema'}</h2>
@@ -179,11 +182,11 @@ export default function TeacherSidebar({
           </button>
         </div>
       </form>
-
-      <hr style={{ margin: '24px 0', borderColor: '#e5e7eb' }} />
+        </>
+      )}
 
       {/* ── Exercise form ── */}
-      {selectedSchema ? (
+      {mode === 'exercise' && (selectedSchema ? (
         <>
           <div className="section-title">
             <div>
@@ -245,7 +248,7 @@ export default function TeacherSidebar({
         </>
       ) : (
         <div className="empty-state">Select a schema to create exercises</div>
-      )}
+      ))}
     </aside>
   );
 }

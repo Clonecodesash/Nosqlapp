@@ -13,12 +13,12 @@ export default function QueryBlock({ query, index, onChange, onRemove, canRemove
         />
       </label>
       <label className="field" style={{ marginTop: 12 }}>
-        Hint
+        Formal representation
         <input
           type="text"
           value={query.hint}
           onChange={e => onChange(index, 'hint', e.target.value)}
-          placeholder="Optional hint for students"
+          placeholder="Formal query representation (optional)"
         />
       </label>
       {canRemove && (

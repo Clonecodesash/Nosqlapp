@@ -9,6 +9,7 @@ import { useLLM } from '../hooks/useLLM';
 export default function SolvePage({
   token,
   role,
+  username,
   schema,
   exercise,
   onLogout,
@@ -52,7 +53,7 @@ export default function SolvePage({
 
   return (
     <div className="app-shell">
-      <Topbar role={role} onLogout={onLogout} />
+      <Topbar role={role} username={username} onLogout={onLogout} />
 
       <main style={{ maxWidth: 860, margin: '0 auto', padding: '28px 24px' }}>
         {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}

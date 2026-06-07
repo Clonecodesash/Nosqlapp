@@ -7,6 +7,7 @@ import { listExercises, createExercise, updateExercise, deleteExercise } from '.
 export default function ExercisesPage({
   token,
   role,
+  username,
   schema,
   onLogout,
   onBack,
@@ -51,14 +52,14 @@ export default function ExercisesPage({
 
   return (
     <div className="app-shell">
-      <Topbar role={role} onLogout={onLogout} />
+      <Topbar role={role} username={username} onLogout={onLogout} />
 
       <main className="main-grid">
         {role === 'teacher' && (
           <TeacherSidebar
+            mode="exercise"
             selectedSchema={schema}
             exerciseToEdit={editingExercise}
-            onSchemaSaved={() => {}}
             onExerciseSaved={handleExerciseSaved}
             onClearExerciseEdit={() => setEditingExercise(null)}
           />

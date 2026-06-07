@@ -4,7 +4,7 @@ import SchemaCard from '../components/SchemaCard';
 import TeacherSidebar from '../components/TeacherSidebar';
 import { listSchemas, createSchema, updateSchema, deleteSchema } from '../api/schemas';
 
-export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
+export default function SchemasPage({ token, role, username, onLogout, onSelectSchema }) {
   const [schemas, setSchemas] = useState([]);
   const [error,   setError]   = useState('');
   const [editingSchema, setEditingSchema] = useState(null);
@@ -44,15 +44,15 @@ export default function SchemasPage({ token, role, onLogout, onSelectSchema }) {
 
   return (
     <div className="app-shell">
-      <Topbar role={role} onLogout={onLogout} />
+      <Topbar role={role} username={username} onLogout={onLogout} />
 
       <main className="main-grid">
         {role === 'teacher' && (
           <TeacherSidebar
+            mode="schema"
             selectedSchema={null}
             schemaToEdit={editingSchema}
             onSchemaSaved={handleSchemaSaved}
-            onExerciseSaved={() => {}}
             onClearSchemaEdit={() => setEditingSchema(null)}
           />
         )}

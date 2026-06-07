@@ -23,7 +23,7 @@ function useNav() {
 }
 
 export default function App() {
-  const { token, role, login, logout } = useAuth();
+  const { token, role, username, login, logout } = useAuth();
   const nav = useNav();
 
   if (!token) {
@@ -35,6 +35,7 @@ export default function App() {
       <SchemasPage
         token={token}
         role={role}
+        username={username}
         onLogout={logout}
         onSelectSchema={nav.goToExercises}
       />
@@ -46,6 +47,7 @@ export default function App() {
       <ExercisesPage
         token={token}
         role={role}
+        username={username}
         schema={nav.schema}
         onLogout={logout}
         onBack={nav.goToSchemas}
@@ -58,6 +60,7 @@ export default function App() {
     <SolvePage
       token={token}
       role={role}
+      username={username}
       schema={nav.schema}
       exercise={nav.exercise}
       onLogout={logout}

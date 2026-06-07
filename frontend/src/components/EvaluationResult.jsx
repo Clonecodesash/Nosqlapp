@@ -11,7 +11,7 @@ export default function EvaluationResult({ evaluation }) {
         <span className={`result-label ${isCorrect ? 'result-correct' : 'result-wrong'}`}>
           {isCorrect ? 'Correct' : 'Needs work'}
         </span>
-        <span className="count-badge">Score: {score ?? '—'} / 100</span>
+        
       </div>
 
       {feedback?.length > 0 && (
