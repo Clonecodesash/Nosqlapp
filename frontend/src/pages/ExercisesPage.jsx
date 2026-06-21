@@ -8,6 +8,7 @@ export default function ExercisesPage({
   token,
   role,
   username,
+  userId,
   schema,
   onLogout,
   onBack,
@@ -92,6 +93,7 @@ export default function ExercisesPage({
                   key={exercise.id}
                   exercise={exercise}
                   role={role}
+                  userId={userId}
                   onClick={() => onSelectExercise(exercise)}
                   onEdit={setEditingExercise}
                   onDelete={handleDeleteExercise}

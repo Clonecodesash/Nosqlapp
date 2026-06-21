@@ -1,6 +1,9 @@
 import React from 'react';
 
-export default function ExerciseCard({ exercise, role, onClick, onEdit, onDelete }) {
+export default function ExerciseCard({ exercise, role, userId, onClick, onEdit, onDelete }) {
+  // Only the owner teacher may edit/delete (matches the backend ownership check).
+  const canManage = role === 'teacher' && exercise.teacherId === userId;
+
   return (
     <article
       className="exercise-card exercise-card-clickable"
@@ -13,7 +16,7 @@ export default function ExerciseCard({ exercise, role, onClick, onEdit, onDelete
             <span className="count-badge">
               {exercise.queries?.length || 0} queries
             </span>
-            {role === 'teacher' && (
+            {canManage && (
               <>
                 <button
                   className="secondary-btn"

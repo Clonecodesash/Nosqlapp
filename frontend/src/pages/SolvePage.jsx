@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import Topbar from '../components/Topbar';
 import AnswerForm from '../components/AnswerForm';
 import EvaluationResult from '../components/EvaluationResult';
-import LLMButtons from '../components/LLMButtons';
-import { submitAnswer, getCorrectAnswer } from '../api/exercises';
+import LLMChat from '../components/LLMChat';
+import { submitAnswer } from '../api/exercises';
 import { useLLM } from '../hooks/useLLM';
 
 export default function SolvePage({
@@ -18,7 +18,6 @@ export default function SolvePage({
   const [answerText,    setAnswerText]    = useState('');
   const [evaluation,    setEvaluation]    = useState(null);
   const [submitting,    setSubmitting]    = useState(false);
-  const [correctAnswer, setCorrectAnswer] = useState(null);
   const [error,         setError]         = useState('');
   const [imgBroken,     setImgBroken]     = useState(false);
 
@@ -28,7 +27,6 @@ export default function SolvePage({
     setError('');
     setSubmitting(true);
     llm.reset();
-    setCorrectAnswer(null);
     // NOTE: answerText is intentionally NOT cleared here so the student
     // can still read, edit, and resubmit their answer after seeing feedback.
     try {
@@ -38,16 +36,6 @@ export default function SolvePage({
       setError(err.message);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleViewAnswer() {
-    if (correctAnswer) return;
-    try {
-      const data = await getCorrectAnswer(token, exercise.id);
-      setCorrectAnswer(data.answer);
-    } catch (err) {
-      setError(err.message);
     }
   }
 
@@ -66,6 +54,10 @@ export default function SolvePage({
           <button className="secondary-btn" type="button" onClick={onBack}>
             Back to exercises
           </button>
+        </div>
+
+        <div>
+          <h3 style={{ marginBottom: 6 }}>Generate the aggregate schema, with regards to the ER Schema and the set of workload given</h3>
         </div>
 
        {/* ── Two-column: ER diagram left, queries right ── */}
@@ -99,7 +91,6 @@ export default function SolvePage({
               {exercise.queries?.map((q, i) => (
                 <li key={q.id || i}>
                   <strong>Query {i + 1}: {q.queryText}</strong>
-                  {q.hint && <span className="hint">Hint: {q.hint}</span>}
                 </li>
               ))}
             </ul>
@@ -130,11 +121,9 @@ export default function SolvePage({
             {evaluation && (
               <>
                 <EvaluationResult evaluation={evaluation} />
-                <LLMButtons
+                <LLMChat
                   llm={llm}
                   isCorrect={evaluation.isCorrect}
-                  onViewAnswer={handleViewAnswer}
-                  correctAnswer={correctAnswer}
                 />
               </>
             )}

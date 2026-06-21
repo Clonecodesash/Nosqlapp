@@ -4,7 +4,7 @@ import SchemaCard from '../components/SchemaCard';
 import TeacherSidebar from '../components/TeacherSidebar';
 import { listSchemas, createSchema, updateSchema, deleteSchema } from '../api/schemas';
 
-export default function SchemasPage({ token, role, username, onLogout, onSelectSchema }) {
+export default function SchemasPage({ token, role, username, userId, onLogout, onSelectSchema }) {
   const [schemas, setSchemas] = useState([]);
   const [error,   setError]   = useState('');
   const [editingSchema, setEditingSchema] = useState(null);
@@ -79,6 +79,7 @@ export default function SchemasPage({ token, role, username, onLogout, onSelectS
                   key={schema.id}
                   schema={schema}
                   role={role}
+                  userId={userId}
                   onClick={() => onSelectSchema(schema)}
                   onEdit={setEditingSchema}
                   onDelete={handleDeleteSchema}

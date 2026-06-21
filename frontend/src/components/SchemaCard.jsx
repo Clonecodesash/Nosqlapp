@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 
-export default function SchemaCard({ schema, role, onClick, onEdit, onDelete }) {
+export default function SchemaCard({ schema, role, userId, onClick, onEdit, onDelete }) {
   const [broken, setBroken] = useState(false);
+
+  // Only the owner teacher may edit/delete (matches the backend ownership check).
+  const canManage = role === 'teacher' && schema.teacherId === userId;
 
   return (
     <article
@@ -23,7 +26,7 @@ export default function SchemaCard({ schema, role, onClick, onEdit, onDelete }) 
       <div className="exercise-body">
         <div className="meta-row">
           <h3>{schema.name}</h3>
-          {role === 'teacher' && (
+          {canManage && (
             <div className="row-actions">
               <button
                 className="secondary-btn"
