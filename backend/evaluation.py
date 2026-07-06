@@ -6,67 +6,77 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 
+import error_taxonomy as tax
 from aggregate_evaluator import evaluate_schemas
 from dto import QueryCreate
-from json_sm_parser import parse_jsonsm
+from json_sm_parser import check_syntax, parse_jsonsm
 
 
-def feedback_to_json(feedback: List[str]) -> str:
-    """Convert feedback list to JSON string for storage."""
+def feedback_to_json(feedback: List[dict]) -> str:
+    """Convert a list of feedback dicts to a JSON string for storage."""
     return json.dumps(feedback)
 
 
-def feedback_from_json(feedback_json: Optional[str]) -> List[str]:
-    """Convert stored JSON feedback back to list."""
+def feedback_from_json(feedback_json: Optional[str]) -> List[dict]:
+    """Convert stored JSON feedback back to a list of dicts.
+
+    Legacy logs stored plain strings; those are normalised into the structured
+    shape so old and new answer logs render the same way.
+    """
     if not feedback_json:
         return []
     try:
-        return json.loads(feedback_json)
+        data = json.loads(feedback_json)
     except (json.JSONDecodeError, TypeError):
         return []
+
+    normalized = []
+    for item in data:
+        if isinstance(item, str):
+            normalized.append(tax.make("LEGACY", item).to_dict())
+        elif isinstance(item, dict):
+            normalized.append(item)
+    return normalized
+
+
+def _score_from_feedback(feedback_objs) -> dict:
+    """Turn a list of Feedback objects into feedback dicts + score + correctness."""
+    feedback = [f.to_dict() for f in feedback_objs]
+
+    if not feedback_objs:
+        return {"feedback": feedback, "score": 100, "is_correct": True}
+
+    penalty = sum(tax.SEVERITY_WEIGHTS.get(f.severity, 15) for f in feedback_objs)
+    score = max(0, 100 - penalty)
+    # info-only findings (e.g. a different root name) do not make an answer wrong.
+    is_correct = not any(f.severity in tax.BLOCKING_SEVERITIES for f in feedback_objs)
+    return {"feedback": feedback, "score": score, "is_correct": is_correct}
 
 
 def evaluate_aggregate_answer(student_answer: str, reference_answer: str) -> dict:
     """
-    Evaluate student answer against reference using the aggregate evaluator.
-    Parses both answers into schema nodes, then evaluates structurally.
-    Returns dict with feedback, score, and is_correct status.
+    Evaluate a student answer against the reference using the aggregate evaluator.
+
+    Phase 1 (syntax gate): if the student answer does not parse, return that
+    single syntax finding with a score of 0 - it cannot be compared.
+    Phase 2 (comparison): parse both answers and compare structure + metadata.
+
+    Returns a dict with ``feedback`` (list of taxonomy dicts), ``score``, and
+    ``is_correct``.
     """
     try:
-        # Parse both schemas into node trees
+        syntax_error = check_syntax(student_answer)
+        if syntax_error:
+            return {"feedback": [syntax_error.to_dict()], "score": 0, "is_correct": False}
+
         student_node = parse_jsonsm(student_answer)
         reference_node = parse_jsonsm(reference_answer)
 
-        # Call the evaluate_schemas function from aggregate_evaluator
-        feedback = evaluate_schemas(student_node, reference_node)
-
-        # Compute score: 0-100 based on feedback length and severity
-        # No feedback = 100, otherwise penalize based on critical/error/warning count
-        if not feedback:
-            score = 100
-            is_correct = True
-        else:
-            critical_count = sum(1 for f in feedback if "CRITICAL" in f or "MISSING" in f)
-            error_count = sum(1 for f in feedback if "ERROR" in f or "EXTRA" in f)
-            warning_count = sum(1 for f in feedback if "WARNING" in f)
-
-            # Scoring: Start at 100, deduct based on issues
-            score = 100
-            score -= critical_count * 25
-            score -= error_count * 15
-            score -= warning_count * 5
-            score = max(0, score)
-
-            is_correct = score == 100
-
-        return {
-            "feedback": feedback,
-            "score": score,
-            "is_correct": is_correct,
-        }
+        feedback_objs = evaluate_schemas(student_node, reference_node)
+        return _score_from_feedback(feedback_objs)
     except Exception as e:
         return {
-            "feedback": [f"ERROR: Evaluation failed: {str(e)}"],
+            "feedback": [tax.make("ENGINE_ERROR", f"Evaluation failed: {str(e)}").to_dict()],
             "score": 0,
             "is_correct": False,
         }

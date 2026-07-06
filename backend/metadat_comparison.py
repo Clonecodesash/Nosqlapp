@@ -1,3 +1,4 @@
+import error_taxonomy as tax
 import json_sm_parser as parser
 
 
@@ -6,7 +7,8 @@ import json_sm_parser as parser
 Metadata Comparison Functions for Schema Evaluation
 
 This module provides functions to compare metadata (identifier, partitionKey, required attributes)
-between reference and student schemas.
+between reference and student schemas. Each mismatch is returned as an
+:class:`error_taxonomy.Feedback` so it carries a stable code + severity.
 """
 
 def compare_metadata(student_node, reference_node):
@@ -53,14 +55,15 @@ def compare_identifier(student_node, reference_node):
     # Check if reference has identifier_options (new format with multiple combinations)
     if hasattr(reference_node, 'identifier_options') and reference_node.identifier_options:
         if not student_node.identifier:
-            feedback.append(
-                f"METADATA ERROR: Missing identifier. "
-                f"Reference specifies one of: {reference_node.identifier_options}, but student has none."
-            )
+            feedback.append(tax.make(
+                "META_IDENTIFIER_MISSING",
+                f"Missing identifier. Reference specifies one of: "
+                f"{reference_node.identifier_options}, but student has none.",
+                path="@metadata.identifier",
+            ))
         else:
             # Convert student identifier to lowercase set for comparison
             student_id_lower = set(f.lower() for f in student_node.identifier)
-            print(f"DEBUG: Student identifier (lowercase set): {student_id_lower}")
             # Check if student's identifier matches ANY of the valid options
             is_valid = False
             for option in reference_node.identifier_options:
@@ -68,24 +71,28 @@ def compare_identifier(student_node, reference_node):
                 if student_id_lower == option_lower:
                     is_valid = True
                     break
-            
+
             if not is_valid:
                 # Format the valid options for display
                 valid_options_str = ", ".join(
                     [f"{{{', '.join(opt)}}}" for opt in reference_node.identifier_options]
                 )
-                feedback.append(
-                    f"METADATA ERROR: Identifier mismatch. "
-                    f"Student uses {student_node.identifier}, but must be one of: {valid_options_str}."
-                )
+                feedback.append(tax.make(
+                    "META_IDENTIFIER_MISMATCH",
+                    f"Identifier mismatch. Student uses {student_node.identifier}, "
+                    f"but must be one of: {valid_options_str}.",
+                    path="@metadata.identifier",
+                ))
     
     # Fallback for legacy single identifier format
     elif reference_node.identifier:
         if not student_node.identifier:
-            feedback.append(
-                f"METADATA ERROR: Missing identifier. "
-                f"Reference specifies {reference_node.identifier}, but student has none."
-            )
+            feedback.append(tax.make(
+                "META_IDENTIFIER_MISSING",
+                f"Missing identifier. Reference specifies {reference_node.identifier}, "
+                f"but student has none.",
+                path="@metadata.identifier",
+            ))
         else:
             # 1. Normalize student input: 
             # If student is [['field']], flatten it to ['field']
@@ -109,26 +116,40 @@ def compare_identifier(student_node, reference_node):
                         break
                 
                 if not is_valid:
-                    feedback.append(
-                        f"METADATA ERROR: Identifier mismatch. "
-                        f"Reference uses {ref_val}, but student uses {student_node.identifier}."
-                    )
+                    feedback.append(tax.make(
+                        "META_IDENTIFIER_MISMATCH",
+                        f"Identifier mismatch. Reference uses {ref_val}, "
+                        f"but student uses {student_node.identifier}.",
+                        path="@metadata.identifier",
+                    ))
             else:
                 # 3. Standard single-list comparison (The original logic)
                 ref_id_set = set(str(f).lower() for f in ref_val)
-                
+
                 if ref_id_set != student_id_set:
                     missing = ref_id_set - student_id_set
                     extra = student_id_set - ref_id_set
-                    
+
                     if missing and extra:
-                        feedback.append(f"METADATA ERROR: Identifier mismatch. Missing: {missing}, Extra: {extra}.")
+                        feedback.append(tax.make(
+                            "META_IDENTIFIER_MISMATCH",
+                            f"Identifier mismatch. Missing: {missing}, Extra: {extra}.",
+                            path="@metadata.identifier",
+                        ))
                     elif missing:
-                        feedback.append(f"METADATA ERROR: Identifier mismatch. Reference uses {ref_val}, but student uses {s_id}.")
+                        feedback.append(tax.make(
+                            "META_IDENTIFIER_MISMATCH",
+                            f"Identifier mismatch. Reference uses {ref_val}, but student uses {s_id}.",
+                            path="@metadata.identifier",
+                        ))
                     else:
-                        feedback.append(f"METADATA WARNING: Unexpected identifier fields. Reference uses {ref_val}, but student uses {s_id}.")
-            
-            # --- END OF IMPROVED LOGIC ---                
+                        feedback.append(tax.make(
+                            "META_IDENTIFIER_UNEXPECTED",
+                            f"Unexpected identifier fields. Reference uses {ref_val}, but student uses {s_id}.",
+                            path="@metadata.identifier",
+                        ))
+
+            # --- END OF IMPROVED LOGIC ---
     # elif reference_node.identifier:
     #     if not student_node.identifier:
     #         feedback.append(
@@ -162,11 +183,12 @@ def compare_identifier(student_node, reference_node):
     #                     f"Reference uses {reference_node.identifier}, but student uses {student_node.identifier}."
     #                 )
     elif student_node.identifier:
-        feedback.append(
-            f"METADATA WARNING: Student specifies identifier {student_node.identifier}, "
-            f"but reference has none."
-        )
-    
+        feedback.append(tax.make(
+            "META_IDENTIFIER_UNEXPECTED",
+            f"Student specifies identifier {student_node.identifier}, but reference has none.",
+            path="@metadata.identifier",
+        ))
+
     return feedback
 
 
@@ -181,40 +203,48 @@ def compare_partition_key(student_node, reference_node):
     
     if reference_node.partitionKey:
         if not student_node.partitionKey:
-            feedback.append(
-                f"METADATA ERROR: Missing partition key. "
-                f"Reference specifies {reference_node.partitionKey}, but student has none."
-            )
+            feedback.append(tax.make(
+                "META_PARTITIONKEY_MISSING",
+                f"Missing partition key. Reference specifies {reference_node.partitionKey}, "
+                f"but student has none.",
+                path="@metadata.partitionKey",
+            ))
         else:
             # Compare as sets (case-insensitive)
             ref_pk_lower = set(f.lower() for f in reference_node.partitionKey)
             student_pk_lower = set(f.lower() for f in student_node.partitionKey)
-            
+
             if ref_pk_lower != student_pk_lower:
                 missing = ref_pk_lower - student_pk_lower
                 extra = student_pk_lower - ref_pk_lower
-                
+
                 if missing and extra:
-                    feedback.append(
-                        f"METADATA ERROR: Partition key mismatch. "
-                        f"Missing: {missing}, Extra: {extra}."
-                    )
+                    feedback.append(tax.make(
+                        "META_PARTITIONKEY_MISMATCH",
+                        f"Partition key mismatch. Missing: {missing}, Extra: {extra}.",
+                        path="@metadata.partitionKey",
+                    ))
                 elif missing:
-                    feedback.append(
-                        f"METADATA ERROR: Partition key mismatch. "
-                        f"Reference uses {reference_node.partitionKey}, but student uses {student_node.partitionKey}."
-                    )
+                    feedback.append(tax.make(
+                        "META_PARTITIONKEY_MISMATCH",
+                        f"Partition key mismatch. Reference uses {reference_node.partitionKey}, "
+                        f"but student uses {student_node.partitionKey}.",
+                        path="@metadata.partitionKey",
+                    ))
                 else:
-                    feedback.append(
-                        f"METADATA WARNING: Unexpected partition key fields. "
-                        f"Reference uses {reference_node.partitionKey}, but student uses {student_node.partitionKey}."
-                    )
+                    feedback.append(tax.make(
+                        "META_PARTITIONKEY_UNEXPECTED",
+                        f"Unexpected partition key fields. Reference uses {reference_node.partitionKey}, "
+                        f"but student uses {student_node.partitionKey}.",
+                        path="@metadata.partitionKey",
+                    ))
     elif student_node.partitionKey:
-        feedback.append(
-            f"METADATA WARNING: Student specifies partition key {student_node.partitionKey}, "
-            f"but reference has none."
-        )
-    
+        feedback.append(tax.make(
+            "META_PARTITIONKEY_UNEXPECTED",
+            f"Student specifies partition key {student_node.partitionKey}, but reference has none.",
+            path="@metadata.partitionKey",
+        ))
+
     return feedback
 
 
@@ -234,22 +264,27 @@ def compare_required_attributes(student_node, reference_node):
         # Find missing required attributes (in reference but not in student)
         missing = set(ref_required_lower) - set(student_required_lower)
         if missing:
-            feedback.append(
-                f"METADATA ERROR: Missing required attributes: {', '.join(sorted(missing))}."
-            )
-        
+            feedback.append(tax.make(
+                "META_REQUIRED_MISSING",
+                f"Missing required attributes: {', '.join(sorted(missing))}.",
+                path="@metadata.required",
+            ))
+
         # Find extra required attributes (in student but not in reference)
         extra = set(student_required_lower) - set(ref_required_lower)
         if extra:
-            feedback.append(
-                f"METADATA WARNING: Unexpected required attributes: {', '.join(sorted(extra))}."
-            )
+            feedback.append(tax.make(
+                "META_REQUIRED_UNEXPECTED",
+                f"Unexpected required attributes: {', '.join(sorted(extra))}.",
+                path="@metadata.required",
+            ))
     elif student_node.required:
-        feedback.append(
-            f"METADATA WARNING: Student specifies required attributes {student_node.required}, "
-            f"but reference has none."
-        )
-    
+        feedback.append(tax.make(
+            "META_REQUIRED_UNEXPECTED",
+            f"Student specifies required attributes {student_node.required}, but reference has none.",
+            path="@metadata.required",
+        ))
+
     return feedback
 
 

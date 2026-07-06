@@ -369,6 +369,24 @@ button {
   padding-top: 14px;
 }
 
+.result-panel {
+  margin-top: 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  padding: 14px;
+}
+
+/* Correct -> blue tint, Wrong -> red tint */
+.result-panel-correct {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.result-panel-wrong {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
 .result-label {
   display: inline-flex;
   align-items: center;
@@ -378,8 +396,8 @@ button {
 }
 
 .result-correct {
-  background: #dcfce7;
-  color: #15803d;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .result-wrong {

@@ -8,6 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from models import UserRole
 
 
+class FeedbackItem(BaseModel):
+    """One structured evaluation finding (see backend/error_taxonomy.py)."""
+    code: Optional[str] = None
+    message: str
+    category: Optional[str] = None
+    severity: Optional[str] = None
+    line: Optional[int] = None
+    col: Optional[int] = None
+    path: Optional[str] = None
+
+
 class UserCreate(BaseModel):
     username: str
     password: str = Field(..., min_length=6, max_length=72)
@@ -65,7 +76,7 @@ class StudentExerciseAnswerLogOut(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
     evaluation_score: Optional[int] = Field(None, alias="score")
     is_correct: Optional[bool] = Field(None, alias="isCorrect")
-    feedback: List[str] = Field(default_factory=list)
+    feedback: List[FeedbackItem] = Field(default_factory=list)
     attempt_number: int = Field(default=1, alias="attemptNumber")
     used_hint: bool = Field(default=False, alias="usedHint")
     used_llm_explanation: bool = Field(default=False, alias="usedLlmExplanation")
