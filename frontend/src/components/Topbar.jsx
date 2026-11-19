@@ -4,7 +4,7 @@ export default function Topbar({ role, username, onLogout }) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <h1 style={{ margin: 0 }}>Aggregate Modeling</h1>
+        <h1 style={{ margin: 0 }}>Aggregate Lab</h1>
         <div className="topbar-actions">
           <span className="role-pill">
             {username ? `${username} · ${role}` : role}

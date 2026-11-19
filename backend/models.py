@@ -115,8 +115,8 @@ class StudentExerciseAnswerLog(Base):
     answer_text = Column(Text, nullable=False)             # The raw schema string submission from the student
     
     # Structural Parsing feedback (Evaluation Engine Outputs)
-    evaluation_feedback = Column(Text, nullable=True)       # Stringified array of errors (e.g., '["Missing ID link", "Unnested collection"]')
-    evaluation_score = Column(Integer, nullable=True)      # Numeric assessment grade mapping 
+    evaluation_feedback = Column(Text, nullable=True)       # JSON array of ALL findings, each flagged "shown" if given to the student
+    evaluation_score = Column(Integer, nullable=True)      # Unused: the verdict is binary, no grade is awarded (kept for old rows)
     is_correct = Column(Boolean, nullable=True)            # Flag indicating a perfect structural pass
 
     # Granular Student Intervention Metrics (Critical Metrics for Thesis Chapter 4/5 Analytics)
@@ -133,3 +133,26 @@ class StudentExerciseAnswerLog(Base):
     # Relationships
     exercise = relationship("Exercise", back_populates="student_answer_logs")
     student = relationship("User", back_populates="answer_logs")
+    llm_interactions = relationship(
+        "LLMInteraction",
+        back_populates="answer_log",
+        cascade="all, delete-orphan",
+        order_by="LLMInteraction.created_at",
+    )
+
+
+class LLMInteraction(Base):
+    """
+    One request for LLM help, recorded against the attempt it refers to, so the
+    analysis can see which kinds of help a student asked for before resubmitting.
+    """
+    __tablename__ = "llm_interactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    answer_log_id = Column(Integer, ForeignKey("student_exercise_answer_logs.id"), nullable=False, index=True)
+    action = Column(String, nullable=False)                # e.g. "explain-error", "give-hint", "fix-schema"
+    response_text = Column(Text, nullable=True)            # The model's reply; null if the provider failed
+    succeeded = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    answer_log = relationship("StudentExerciseAnswerLog", back_populates="llm_interactions")

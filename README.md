@@ -1,4 +1,4 @@
-# Query Modeling Monorepo
+# Aggregate Lab
 
 ## Structure
 - `backend/`: FastAPI Python backend (Dockerized)
@@ -15,7 +15,9 @@
    ```
 
 ## Authentication
-- Register/login as student or teacher.
+- Anyone can register as a student. Teacher registration requires a matching
+  `TEACHER_INVITE_CODE` set in `backend/.env`; keep this value secret and share
+  it only with trusted teachers.
 
 ## Migrations
 - Use Alembic for DB migrations:

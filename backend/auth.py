@@ -1,5 +1,7 @@
 """Authentication: password hashing, JWT tokens, and current-user dependencies."""
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -7,7 +9,7 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from config import ALGORITHM, SECRET_KEY
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from database import get_db
 from models import User, UserRole
 
@@ -29,7 +31,14 @@ def get_password_hash(password):
 
 
 def create_access_token(data: dict):
-    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+    """Sign a token that expires after ACCESS_TOKEN_EXPIRE_MINUTES.
+
+    The expiry ("exp") is checked automatically by jwt.decode in
+    get_current_user, so an expired token is rejected with 401.
+    """
+    to_encode = dict(data)
+    to_encode["exp"] = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):

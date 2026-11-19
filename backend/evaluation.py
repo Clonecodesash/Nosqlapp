@@ -7,21 +7,25 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 import error_taxonomy as tax
-from aggregate_evaluator import evaluate_schemas
+from aggregate_evaluator import evaluate_schemas_full
 from dto import QueryCreate
 from json_sm_parser import check_syntax, parse_jsonsm
 
 
-def feedback_to_json(feedback: List[dict]) -> str:
-    """Convert a list of feedback dicts to a JSON string for storage."""
-    return json.dumps(feedback)
+def findings_to_json(findings: List[dict]) -> str:
+    """Serialize the complete list of findings for storage.
+
+    Every finding is stored, each with a ``shown`` flag marking the ones the
+    student was given, so the full list stays available for analysis.
+    """
+    return json.dumps(findings)
 
 
-def feedback_from_json(feedback_json: Optional[str]) -> List[dict]:
-    """Convert stored JSON feedback back to a list of dicts.
+def _load_findings(feedback_json: Optional[str]) -> List[dict]:
+    """Load stored findings, normalising legacy formats.
 
-    Legacy logs stored plain strings; those are normalised into the structured
-    shape so old and new answer logs render the same way.
+    Legacy logs stored plain strings (or dicts without a ``shown`` flag); those
+    are treated as shown so old and new answer logs render the same way.
     """
     if not feedback_json:
         return []
@@ -33,53 +37,81 @@ def feedback_from_json(feedback_json: Optional[str]) -> List[dict]:
     normalized = []
     for item in data:
         if isinstance(item, str):
-            normalized.append(tax.make("LEGACY", item).to_dict())
+            normalized.append({**tax.make("LEGACY", item).to_dict(), "shown": True})
         elif isinstance(item, dict):
-            normalized.append(item)
+            normalized.append({"shown": True, **item})
     return normalized
 
 
-def _score_from_feedback(feedback_objs) -> dict:
-    """Turn a list of Feedback objects into feedback dicts + score + correctness."""
-    feedback = [f.to_dict() for f in feedback_objs]
+def _strip_flag(finding: dict) -> dict:
+    return {k: v for k, v in finding.items() if k != "shown"}
 
-    if not feedback_objs:
-        return {"feedback": feedback, "score": 100, "is_correct": True}
 
-    penalty = sum(tax.SEVERITY_WEIGHTS.get(f.severity, 15) for f in feedback_objs)
-    score = max(0, 100 - penalty)
-    # info-only findings (e.g. a different root name) do not make an answer wrong.
-    is_correct = not any(f.severity in tax.BLOCKING_SEVERITIES for f in feedback_objs)
-    return {"feedback": feedback, "score": score, "is_correct": is_correct}
+def feedback_from_json(feedback_json: Optional[str]) -> List[dict]:
+    """The findings that were shown to the student for a stored attempt."""
+    return [_strip_flag(f) for f in _load_findings(feedback_json) if f["shown"]]
+
+
+def all_findings_from_json(feedback_json: Optional[str]) -> List[dict]:
+    """Every finding the engine produced for a stored attempt (for analysis)."""
+    return [_strip_flag(f) for f in _load_findings(feedback_json)]
+
+
+def _verdict(findings) -> dict:
+    """
+    Derive the verdict and the findings to show from the complete list.
+
+    An answer is correct iff it contains no syntax, schema-dependent or
+    workload-dependent error; complications never make it incorrect.
+    - Wrong answer: only the FIRST error is shown (one problem at a time).
+    - Correct answer: every complication is shown, as a suggestion.
+    """
+    errors = [f for f in findings if f.is_error]
+    if errors:
+        shown = [errors[0]]
+    else:
+        shown = [f for f in findings if f.category == tax.CLASS_COMPLICATION]
+
+    shown_ids = {id(f) for f in shown}
+    return {
+        "is_correct": not errors,
+        "feedback": [f.to_dict() for f in shown],
+        "findings": [{**f.to_dict(), "shown": id(f) in shown_ids} for f in findings],
+    }
 
 
 def evaluate_aggregate_answer(student_answer: str, reference_answer: str) -> dict:
     """
-    Evaluate a student answer against the reference using the aggregate evaluator.
+    Evaluate a student answer against the reference.
 
-    Phase 1 (syntax gate): if the student answer does not parse, return that
-    single syntax finding with a score of 0 - it cannot be compared.
-    Phase 2 (comparison): parse both answers and compare structure + metadata.
+    Phase 1 (syntax gate): if the student answer does not parse, the first
+    syntax problem is the only finding and the answer is wrong.
+    Phase 2 (comparison): parse both answers and compare root, metadata and
+    body (breadth-first).
 
-    Returns a dict with ``feedback`` (list of taxonomy dicts), ``score``, and
-    ``is_correct``.
+    Returns a dict with ``is_correct``, ``feedback`` (the findings shown to the
+    student) and ``findings`` (every finding, each with a ``shown`` flag, for
+    storage).
     """
     try:
         syntax_error = check_syntax(student_answer)
         if syntax_error:
-            return {"feedback": [syntax_error.to_dict()], "score": 0, "is_correct": False}
+            return _verdict([syntax_error])
+
+        # A broken reference would make every answer look wrong; say so
+        # explicitly (the teacher preview is where this should be caught).
+        reference_error = check_syntax(reference_answer)
+        if reference_error:
+            return _verdict([tax.make(
+                "ENGINE_ERROR",
+                f"The reference answer of this exercise is not valid json-sm: {reference_error}",
+            )])
 
         student_node = parse_jsonsm(student_answer)
         reference_node = parse_jsonsm(reference_answer)
-
-        feedback_objs = evaluate_schemas(student_node, reference_node)
-        return _score_from_feedback(feedback_objs)
+        return _verdict(evaluate_schemas_full(student_node, reference_node))
     except Exception as e:
-        return {
-            "feedback": [tax.make("ENGINE_ERROR", f"Evaluation failed: {str(e)}").to_dict()],
-            "score": 0,
-            "is_correct": False,
-        }
+        return _verdict([tax.make("ENGINE_ERROR", f"Evaluation failed: {str(e)}")])
 
 
 def parse_queries_payload(queries: str):

@@ -40,7 +40,7 @@ export function useLLM(token, exerciseId) {
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
-            ? { ...m, text: `Sorry, something went wrong: ${err.message}`, loading: false, error: true }
+            ? { ...m, text: err.message, loading: false, error: true }
             : m
         )
       );

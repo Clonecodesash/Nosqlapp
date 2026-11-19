@@ -106,7 +106,6 @@ async function llmCall(token, exerciseId, action) {
 export const explainError    = (token, id) => llmCall(token, id, 'explain-error');
 export const giveHint        = (token, id) => llmCall(token, id, 'give-hint');
 export const fixSchema       = (token, id) => llmCall(token, id, 'fix-schema');
-export const explainSuccess  = (token, id) => llmCall(token, id, 'explain-success');
 export const describeSchema  = (token, id) => llmCall(token, id, 'describe-schema');
 export const explainSchema   = (token, id) => llmCall(token, id, 'explain-schema');
 export const checkErrors     = (token, id) => llmCall(token, id, 'check-errors');

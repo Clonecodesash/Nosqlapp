@@ -12,8 +12,7 @@ class FeedbackItem(BaseModel):
     """One structured evaluation finding (see backend/error_taxonomy.py)."""
     code: Optional[str] = None
     message: str
-    category: Optional[str] = None
-    severity: Optional[str] = None
+    category: Optional[str] = None  # syntax | schema | workload | complication
     line: Optional[int] = None
     col: Optional[int] = None
     path: Optional[str] = None
@@ -22,7 +21,8 @@ class FeedbackItem(BaseModel):
 class UserCreate(BaseModel):
     username: str
     password: str = Field(..., min_length=6, max_length=72)
-    role: UserRole
+    role: UserRole = UserRole.student
+    teacher_invite_code: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -74,7 +74,6 @@ class StudentExerciseAnswerLogOut(BaseModel):
     exercise_id: int = Field(..., alias="exerciseId")
     student_id: int = Field(..., alias="studentId")
     created_at: datetime = Field(..., alias="createdAt")
-    evaluation_score: Optional[int] = Field(None, alias="score")
     is_correct: Optional[bool] = Field(None, alias="isCorrect")
     feedback: List[FeedbackItem] = Field(default_factory=list)
     attempt_number: int = Field(default=1, alias="attemptNumber")

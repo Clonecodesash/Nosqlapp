@@ -50,7 +50,6 @@ def serialize_exercise(exercise: Exercise, current_user: User):
                 "exerciseId": answer_log.exercise_id,
                 "studentId": answer_log.student_id,
                 "createdAt": answer_log.created_at.isoformat(),
-                "score": answer_log.evaluation_score,
                 "isCorrect": answer_log.is_correct,
                 "feedback": feedback_from_json(answer_log.evaluation_feedback),
                 "attemptNumber": answer_log.attempt_number,

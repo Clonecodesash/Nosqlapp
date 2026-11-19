@@ -11,6 +11,9 @@ load_dotenv()
 DATABASE_URL = os.environ["DATABASE_URL"]
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+# How long a login stays valid. After this, the user must log in again.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+TEACHER_INVITE_CODE = os.getenv("TEACHER_INVITE_CODE", "")
 
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1").strip()
 AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "").strip()

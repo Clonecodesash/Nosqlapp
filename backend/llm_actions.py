@@ -1,9 +1,19 @@
 """
-LLM button-action functions for the aggregate-modelling exercises.
+LLM button-action functions for the aggregate-modelling exercises
+(thesis Chapter 4, "The Student's Interactions").
 
 Each action builds a system prompt + user prompt and calls the OpenAI Responses
-API. These were split out of aggregate_evaluator.py so the structural evaluator
-stays free of any network/LLM concerns.
+API. The model never decides correctness: the verdict and the findings come
+from the deterministic engine, and every action that concerns errors gives the
+model the engine's finding as an established fact to explain.
+
+    Action                      Verdict  Information given to the model
+    What does this error mean?  Wrong    finding, student's answer
+    Give me a hint              Wrong    finding, student's answer, reference
+    How can I fix my schema?    Wrong    finding, student's answer, reference
+    Describe my schema          Correct  student's answer
+    Explain my schema           Correct  student's answer, reference, workload
+    Does my schema have errors? Correct  engine's complications, student's answer
 """
 
 import json
@@ -26,7 +36,7 @@ def get_openai_client_config():
 
 
 def _call_llm_api(system_instructions: str, prompt: str) -> str:
-    """Internal helper engine to execute HTTP urllib standard requests to OpenAI."""
+    """Send one stateless request to the OpenAI Responses API and return its text."""
     api_key, model = get_openai_client_config()
 
     payload = {
@@ -55,7 +65,7 @@ def _call_llm_api(system_instructions: str, prompt: str) -> str:
             if explanation:
                 return explanation.strip()
             for output_item in response_payload.get("output", []):
-                for content_item in output_item.get("content", []):
+                for content_item in output_item.get("content", []) or []:
                     if content_item.get("type") == "output_text" and content_item.get("text"):
                         return content_item["text"].strip()
             raise RuntimeError("LLM response did not include output text")
@@ -68,152 +78,173 @@ def _call_llm_api(system_instructions: str, prompt: str) -> str:
 
 
 # =====================================================================
-# THE INDEPENDENT LLM BUTTON CALL FUNCTIONS
+# SHARED PROMPT PIECES
 # =====================================================================
 
-# --- BUTTON ACTION 1: Explain Error ---
-def action_explain_error_briefly(student_answer: str, reference_answer: str, feedback: list[str]) -> str:
-    """
-    Triggers when the student clicks 'Explain Error'.
-    Translates automated structural feedback list items into plain, non-technical English descriptions.
-    """
-    system_instructions = (
-        "You are an objective aggregate modeling teaching assistant. Your sole job is to decipher "
-        "the raw evaluation feedback array for the student. "
-        "Explain what positional mismatches, extra items, or missing fields occurred in clear, "
-        "jargon-free language. Keep it brief, factual, and under 100 words. "
-        "Do not offer suggestions, fixes, or solutions yet."
-    )
+_ROLE = (
+    "You are a teaching assistant for aggregate-oriented NoSQL schema design. "
+    "Students write aggregate schemas in json-sm notation: `Name: { ... }` is an object "
+    "(a single embedded document), `name: [ ... ]` is a collection (a list of embedded "
+    "elements), a bare name is a simple attribute, and an optional `@metadata:` block "
+    "declares the identifier, the partition key and the required attributes. "
+)
 
+_FINDING_IS_FACT = (
+    "A deterministic, rule-based checker has already evaluated the student's schema. Its "
+    "finding is correct: do not question it, do not decide yourself whether the schema is "
+    "right or wrong, and do not look for other problems. "
+)
+
+_CLASS_LABELS = {
+    "syntax": "Syntax error",
+    "schema": "Schema-dependent error",
+    "workload": "Workload-dependent error",
+    "complication": "Complication",
+}
+
+
+def _format_finding(finding: dict) -> str:
+    """Render one engine finding as text for a prompt."""
+    label = _CLASS_LABELS.get(finding.get("category"), "Finding")
+    text = f"{label} [{finding.get('code', 'UNKNOWN')}]: {finding.get('message', '')}"
+    if finding.get("line") is not None and finding.get("col") is not None:
+        text += f" (line {finding['line']}, column {finding['col']})"
+    elif finding.get("path"):
+        text += f" (at {finding['path']})"
+    return text
+
+
+def _format_workload(workload: list[str]) -> str:
+    return "\n".join(f"Q{i}: {query}" for i, query in enumerate(workload, start=1))
+
+
+# =====================================================================
+# WRONG ANSWER: explain, hint, fix
+# =====================================================================
+
+def action_explain_error(student_answer: str, finding: dict) -> str:
+    """'What does this error mean?' - restate the current finding in plain language."""
+    system_instructions = (
+        _ROLE + _FINDING_IS_FACT +
+        "Your task: restate the finding in plain, non-technical language and relate it to "
+        "the student's own schema, saying which part of their schema it concerns and what it "
+        "means for the data stored there. Explain only: do not suggest a correction, do not "
+        "say how to fix it, and do not write any schema text. "
+        "Answer in at most 3 sentences (under 80 words)."
+    )
     prompt = (
-        f"Automated evaluation feedback codes:\n{json.dumps(feedback, indent=2)}\n\n"
-        f"Student's submission:\n{student_answer}\n\n"
-        "Explain these specific structural errors to the student briefly."
+        f"Checker finding:\n{_format_finding(finding)}\n\n"
+        f"Student's schema:\n{student_answer}\n\n"
+        "Explain this finding to the student."
     )
     return _call_llm_api(system_instructions, prompt)
 
 
-# --- BUTTON ACTION 2: Give Me a Hint ---
-def action_give_conceptual_hint(student_answer: str, reference_answer: str, feedback: list[str]) -> str:
-    """
-    Triggers when the student clicks 'Give Me a Hint'.
-    Provides educational cues regarding positioning or layout rules without altering raw scripts.
-    """
+def action_give_hint(student_answer: str, reference_answer: str, finding: dict) -> str:
+    """'Give me a hint' - one conceptual cue towards the current finding."""
     system_instructions = (
-        "You are an encouraging mentor. Do not tell the student exactly what failed, and "
-        "NEVER provide code blocks or modified schemas. Instead, look at the reference structure "
-        "and the student's errors, and give them a strategic design hint or puzzle-solving clue "
-        "(e.g., 'Check if you nested a collection too deeply inside your main block' or "
-        "'Look at the order of fields in your root object'). Keep it under  words."
+        _ROLE + _FINDING_IS_FACT +
+        "You are also given the teacher's reference schema. It is CONFIDENTIAL: it is shown "
+        "to you only so that your hint points in the right direction. "
+        "Your task: give ONE conceptual hint that makes the student reconsider the design "
+        "decision behind the finding without stating the answer, for example by asking them "
+        "to think about how many orders a customer can have. "
+        "Never reveal any part of the reference beyond what the finding already says: do not "
+        "name fields, structures or metadata values from it. Do not include any schema text "
+        "or code. Answer in 1 or 2 sentences (under 50 words)."
     )
-
     prompt = (
-        f"Student's Attempt:\n{student_answer}\n\n"
-        f"Teacher's Target Layout:\n{reference_answer}\n\n"
-        f"Error Context:\n{json.dumps(feedback, indent=2)}\n\n"
-        "Give the student one actionable, conceptual hint to steer them in the right direction."
+        f"Checker finding:\n{_format_finding(finding)}\n\n"
+        f"Student's schema:\n{student_answer}\n\n"
+        f"Teacher's reference schema (confidential, do not reveal):\n{reference_answer}\n\n"
+        "Give the student one conceptual hint."
     )
     return _call_llm_api(system_instructions, prompt)
 
 
-# --- BUTTON ACTION 3: Fix My Schema ---
-def action_generate_corrected_schema(student_answer: str, reference_answer: str, feedback: list[str]) -> str:
-    """
-    Triggers when the student clicks 'Fix My Schema'.
-    Returns a modified text model matching structural criteria step-by-step.
-    """
+def action_fix_schema(student_answer: str, reference_answer: str, finding: dict) -> str:
+    """'How can I fix my schema?' - the smallest change resolving the current finding only."""
     system_instructions = (
-        "You are an expert data architect assistant. Your job is to correct the student's schema. "
-        "Modify the student's answer so that it perfectly aligns with the teacher's structure and layout sequence. "
-        "Output the corrected aggregate schema code blocks clearly."
+        _ROLE + _FINDING_IS_FACT +
+        "You are also given the teacher's reference schema. It is CONFIDENTIAL and must "
+        "never be reproduced. "
+        "Your task: propose the SMALLEST change to the student's schema that resolves ONLY "
+        "this finding, and justify it in one sentence. Show only the changed fragment (one "
+        "or two lines of json-sm at most), never a complete schema. Do not fix or mention "
+        "anything else, even if you notice other differences from the reference: the student "
+        "will resubmit and receive the next finding, if any. Under 80 words."
     )
-
     prompt = (
-        f"Errors to resolve:\n{json.dumps(feedback, indent=2)}\n\n"
-        f"Student's Incorrect Schema:\n{student_answer}\n\n"
-        f"Target Teacher Reference:\n{reference_answer}\n\n"
-        "Provide the fully corrected schema, along with a 1-sentence note explaining what major block changed."
+        f"Checker finding to resolve:\n{_format_finding(finding)}\n\n"
+        f"Student's schema:\n{student_answer}\n\n"
+        f"Teacher's reference schema (confidential, do not reproduce):\n{reference_answer}\n\n"
+        "Propose the smallest change that resolves this finding."
     )
     return _call_llm_api(system_instructions, prompt)
 
 
-# --- BUTTON ACTION 4: Explain Why It's Correct ---
-def action_explain_success(student_answer: str, reference_answer: str) -> str:
-    """
-    Triggers if evaluation arrays are clear.
-    Highlights design wins like ideal flat layout properties or correct mapping.
-    """
-    system_instructions = (
-        "You are a computer science professor validating a perfect assignment submission. "
-        "Explain to the student why their positioning, nesting structures, and entity-relationship choices "
-        "represent an excellent, optimized aggregate design strategy."
-    )
+# =====================================================================
+# CORRECT ANSWER: describe, explain, check for errors
+# =====================================================================
 
+def action_describe_schema(student_answer: str) -> str:
+    """'Describe my schema' - a factual walkthrough of the student's own schema."""
+    system_instructions = (
+        _ROLE +
+        "Your task: give a factual walkthrough of the student's schema: the aggregate and "
+        "whether its root is a single object or a collection, the attributes it contains, "
+        "which related data is embedded and whether each embedded part is single (object) or "
+        "multiple (collection), and the declared identifier, partition key and required "
+        "attributes. Describe only: do not evaluate, judge quality or suggest changes. "
+        "Under 50 words."
+    )
     prompt = (
-        f"Student's Valid Schema:\n{student_answer}\n\n"
-        f"Teacher Reference Schema:\n{reference_answer}\n\n"
-        "Write a brief, positive architectural validation under 100 words explaining why this model succeeds."
+        f"Student's schema:\n{student_answer}\n\n"
+        "Describe the structure of this schema."
     )
     return _call_llm_api(system_instructions, prompt)
 
 
-# --- BUTTON ACTION 5: Describe My Aggregate Schema ---
-def action_describe_schema(student_answer: str, reference_answer: str) -> str:
-    """
-    Triggers when the student clicks 'Describe my  schema'.
-    Gives a plain, structural walkthrough of the collections, documents, and
-    nesting the student modelled — what it is, not whether it is good.
-    """
+def action_explain_schema(student_answer: str, reference_answer: str, workload: list[str]) -> str:
+    """'Explain my schema' - why the (correct) design suits the exercise's workload."""
     system_instructions = (
-        "You are an aggregate modeling teaching assistant. Describe the student's aggregate "
-        "schema objectively: list the collections, the documents/fields they contain, and how "
-        "entities are embedded or referenced. Be factual and structural — do not judge quality "
-        "or suggest changes. Keep it under 120 words."
+        _ROLE +
+        "The rule-based checker has judged the student's schema CORRECT; do not question "
+        "this and do not suggest changes. You are given the workload (the queries the schema "
+        "must serve) and the teacher's reference design, which the student's schema agrees "
+        "with. Your task: explain why this design suits the workload: which queries benefit "
+        "from each embedding decision, why the partition key supports the expected access, "
+        "and what trade-offs the design accepts, such as duplicated data. Tie each point to "
+        "the actual queries, not to generic advice. Under 150 words."
     )
-
     prompt = (
-        f"Student's Aggregate Schema:\n{student_answer}\n\n"
-        "Describe the structure of this aggregate schema for the student."
+        f"Workload:\n{_format_workload(workload)}\n\n"
+        f"Student's schema:\n{student_answer}\n\n"
+        f"Teacher's reference schema:\n{reference_answer}\n\n"
+        "Explain why the student's design suits this workload."
     )
     return _call_llm_api(system_instructions, prompt)
 
 
-# --- BUTTON ACTION 6: Explain My Schema ---
-def action_explain_schema(student_answer: str, reference_answer: str) -> str:
-    """
-    Triggers when the student clicks 'Explain my schema'.
-    Explains the design rationale behind the student's modelling choices.
-    """
+def action_check_errors(student_answer: str, complications: list[dict]) -> str:
+    """'Does my schema have any errors?' - explain the engine's complications, if any."""
     system_instructions = (
-        "You are a database design mentor. Explain the reasoning behind the student's aggregate "
-        "schema: why the embedding and referencing choices make sense, what access patterns they "
-        "support, and the trade-offs involved. Be educational and concise, under 120 words."
+        _ROLE +
+        "The rule-based checker has judged the student's schema CORRECT: it contains no "
+        "errors. It may still have reported complications: parts that are valid but more "
+        "complex than needed, such as extra fields, redundant nesting or names that differ "
+        "from the expected ones. You are given that list. If the list is empty, confirm "
+        "clearly that the schema has no errors and nothing to simplify. Otherwise, explain "
+        "each complication as an opportunity to simplify the design. Do not look for problems "
+        "of your own and never say the schema is wrong. Under 120 words."
     )
-
+    if complications:
+        listed = "\n".join(f"- {_format_finding(c)}" for c in complications)
+    else:
+        listed = "(none)"
     prompt = (
-        f"Student's Aggregate Schema:\n{student_answer}\n\n"
-        f"Teacher Reference Schema:\n{reference_answer}\n\n"
-        "Explain the design rationale of the student's schema."
-    )
-    return _call_llm_api(system_instructions, prompt)
-
-
-# --- BUTTON ACTION 7: Does My Schema Have Any Errors ---
-def action_check_errors(student_answer: str, reference_answer: str) -> str:
-    """
-    Triggers when the student clicks 'Does my schema have any errors'.
-    Reviews the student's schema for structural problems or modelling mistakes.
-    """
-    system_instructions = (
-        "You are an aggregate modeling reviewer. Inspect the student's schema for structural "
-        "errors, modelling mistakes, or deviations from the reference. If there are none, say so "
-        "clearly and confirm the schema is valid. If there are issues, list them plainly. "
-        "Keep it under 120 words and do not rewrite the schema."
-    )
-
-    prompt = (
-        f"Student's Aggregate Schema:\n{student_answer}\n\n"
-        f"Teacher Reference Schema:\n{reference_answer}\n\n"
-        "Report whether the student's schema has any errors."
+        f"Complications reported by the checker:\n{listed}\n\n"
+        f"Student's schema:\n{student_answer}\n\n"
+        "Tell the student whether their schema has any errors, and explain any complications."
     )
     return _call_llm_api(system_instructions, prompt)

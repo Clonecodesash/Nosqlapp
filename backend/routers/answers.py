@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from auth import get_current_user
+from auth import get_current_user, require_teacher
 from database import get_db
 from dto import CorrectAnswerOut, StudentExerciseAnswerLogOut, StudentExerciseAnswerSubmit
-from evaluation import evaluate_aggregate_answer, feedback_to_json
-from models import Exercise, StudentExerciseAnswerLog, User, UserRole
+from evaluation import evaluate_aggregate_answer, findings_to_json
+from models import Exercise, StudentExerciseAnswerLog, User
 
 router = APIRouter()
 
@@ -58,8 +58,7 @@ async def submit_exercise_answer(
         exercise_id=exercise_id,
         student_id=current_user.id,
         answer_text=answer_data.answer_text,
-        evaluation_feedback=feedback_to_json(evaluation["feedback"]),
-        evaluation_score=evaluation["score"],
+        evaluation_feedback=findings_to_json(evaluation["findings"]),
         is_correct=evaluation["is_correct"],
         attempt_number=attempt_number,
     )
@@ -74,7 +73,6 @@ async def submit_exercise_answer(
         "exerciseId": answer_log.exercise_id,
         "studentId": answer_log.student_id,
         "createdAt": answer_log.created_at,
-        "score": answer_log.evaluation_score,
         "isCorrect": answer_log.is_correct,
         "feedback": evaluation["feedback"],
         "attemptNumber": answer_log.attempt_number,
@@ -89,7 +87,13 @@ async def get_correct_answer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the correct answer for an exercise (student must have submitted first)."""
+    """Get the reference answer for an exercise (teachers only).
+
+    The reference is never returned to a student: students only ever receive
+    the outcome of comparing their answer with it.
+    """
+    require_teacher(current_user)
+
     result = await db.execute(
         select(Exercise)
         .where(Exercise.id == exercise_id)
@@ -101,21 +105,5 @@ async def get_correct_answer(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
     if exercise.answer is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Exercise has no reference answer")
-
-    # Students must have submitted before viewing
-    if current_user.role == UserRole.student:
-        log_result = await db.execute(
-            select(StudentExerciseAnswerLog.id)
-            .where(
-                StudentExerciseAnswerLog.exercise_id == exercise_id,
-                StudentExerciseAnswerLog.student_id == current_user.id,
-            )
-            .limit(1)
-        )
-        if log_result.scalar_one_or_none() is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Submit an answer before viewing the correct answer",
-            )
 
     return {"answer": exercise.answer.answer_text}

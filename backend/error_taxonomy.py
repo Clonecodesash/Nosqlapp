@@ -1,91 +1,82 @@
 """
-Error taxonomy for aggregate-schema evaluation.
+Error taxonomy for aggregate-schema evaluation (thesis Chapter 3, Table 3.1).
 
-Every problem the evaluator can report is described here as a stable CODE with a
-fixed CATEGORY and SEVERITY. Keeping the taxonomy in one place means:
+Every problem the evaluator can report is registered here once, as a stable
+CODE with a fixed pedagogical CLASS. Keeping the taxonomy in one place means:
 
   * the codes are stable identifiers the frontend / thesis analysis can group on
     (e.g. "how many students made SYN_MISSING_COLON mistakes?"), independent of
     the exact wording of the human message;
-  * severity (used for scoring) lives with the code, so scoring never has to
-    guess it by sniffing substrings out of the message text.
+  * the verdict follows from the classes of the findings alone, never from
+    their wording: an answer is correct if and only if it contains no syntax,
+    schema-dependent or workload-dependent error. Complications never make an
+    answer incorrect.
 
-There are two phases of evaluation, mirrored by the categories:
+The four classes:
 
-  Phase 1 - SYNTAX  : is the answer even well-formed? Checked first; the caller
-                      stops at the FIRST syntax error and reports only that one,
-                      because an answer that does not parse cannot be compared.
-  Phase 2 - STRUCTURE / METADATA : only once syntax is clean, compare the
-                      student's tree against the reference tree.
+  SYN - syntax error: the answer is not well-formed json-sm (Phase 1).
+  SCH - schema-dependent error: contradicts a fact the ER schema alone fixes.
+  WRK - workload-dependent error: contradicts a decision made for the workload.
+  COM - complication: valid, but more complex than the reference requires.
+
+Two further codes sit outside the taxonomy as engineering safety nets:
+ENGINE_ERROR (unexpected internal failure) and LEGACY (findings stored in the
+older, string-only format).
 """
 
 from dataclasses import asdict, dataclass
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Categories & severities
+# Pedagogical classes
 # ---------------------------------------------------------------------------
-CATEGORY_SYNTAX = "syntax"
-CATEGORY_STRUCTURE = "structure"
-CATEGORY_METADATA = "metadata"
+CLASS_SYNTAX = "syntax"
+CLASS_SCHEMA = "schema"
+CLASS_WORKLOAD = "workload"
+CLASS_COMPLICATION = "complication"
 
-SEVERITY_CRITICAL = "critical"
-SEVERITY_ERROR = "error"
-SEVERITY_WARNING = "warning"
-SEVERITY_INFO = "info"
+# Outside the taxonomy.
+CLASS_INTERNAL = "internal"
+CLASS_LEGACY = "legacy"
 
-# Points deducted from a starting score of 100 for each finding of this severity.
-SEVERITY_WEIGHTS = {
-    SEVERITY_CRITICAL: 25,
-    SEVERITY_ERROR: 15,
-    SEVERITY_WARNING: 5,
-    SEVERITY_INFO: 0,
-}
-
-# Severities that mean "not yet correct". info-only feedback still counts as correct.
-BLOCKING_SEVERITIES = {SEVERITY_CRITICAL, SEVERITY_ERROR, SEVERITY_WARNING}
+# Classes that make an answer incorrect. An engine failure also does, since
+# the answer could not be shown to be correct.
+ERROR_CLASSES = {CLASS_SYNTAX, CLASS_SCHEMA, CLASS_WORKLOAD, CLASS_INTERNAL}
 
 # ---------------------------------------------------------------------------
-# The taxonomy: code -> (category, severity)
+# The taxonomy: code -> class
 # ---------------------------------------------------------------------------
 TAXONOMY = {
-    # --- Phase 1: syntax --------------------------------------------------
-    "SYN_EMPTY":              (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_UNCLOSED_BRACKET":   (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_EXTRA_BRACKET":      (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_MISMATCHED_BRACKET": (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_MISSING_COLON":      (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_COLON_NO_CONTAINER": (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_MISSING_COMMA":      (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_DOUBLE_COMMA":       (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_LEADING_COMMA":      (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_TRAILING_COMMA":     (CATEGORY_SYNTAX, SEVERITY_ERROR),
-    "SYN_UNEXPECTED_TOKEN":   (CATEGORY_SYNTAX, SEVERITY_ERROR),
+    # --- Syntax errors (Phase 1) -------------------------------------------
+    "SYN_EMPTY":              CLASS_SYNTAX,
+    "SYN_UNCLOSED_BRACKET":   CLASS_SYNTAX,
+    "SYN_EXTRA_BRACKET":      CLASS_SYNTAX,
+    "SYN_MISMATCHED_BRACKET": CLASS_SYNTAX,
+    "SYN_MISSING_COLON":      CLASS_SYNTAX,
+    "SYN_MISSING_COMMA":      CLASS_SYNTAX,
+    "SYN_TRAILING_COMMA":     CLASS_SYNTAX,
+    "SYN_UNEXPECTED_TOKEN":   CLASS_SYNTAX,
 
-    # --- Phase 2: structure ----------------------------------------------
-    "STR_ROOT_TYPE_MISMATCH":      (CATEGORY_STRUCTURE, SEVERITY_CRITICAL),
-    "STR_ROOT_NAME_DIFF":          (CATEGORY_STRUCTURE, SEVERITY_INFO),
-    "STR_MISSING_ELEMENT":         (CATEGORY_STRUCTURE, SEVERITY_ERROR),
-    "STR_EXTRA_ELEMENT":           (CATEGORY_STRUCTURE, SEVERITY_WARNING),
-    "STR_NAME_TYPO":               (CATEGORY_STRUCTURE, SEVERITY_INFO),
-    "STR_TYPE_MISMATCH":           (CATEGORY_STRUCTURE, SEVERITY_ERROR),
-    "STR_CONTAINER_KIND_MISMATCH": (CATEGORY_STRUCTURE, SEVERITY_ERROR),
-    "STR_CHILD_COUNT_MISMATCH":    (CATEGORY_STRUCTURE, SEVERITY_WARNING),
-    "STR_USELESS_NESTING":         (CATEGORY_STRUCTURE, SEVERITY_WARNING),
+    # --- Schema-dependent errors -------------------------------------------
+    "SCH_IDENTIFIER_MISSING":    CLASS_SCHEMA,
+    "SCH_IDENTIFIER_UNEXPECTED": CLASS_SCHEMA,
 
-    # --- Phase 2: metadata -----------------------------------------------
-    "META_IDENTIFIER_MISSING":     (CATEGORY_METADATA, SEVERITY_ERROR),
-    "META_IDENTIFIER_MISMATCH":    (CATEGORY_METADATA, SEVERITY_ERROR),
-    "META_IDENTIFIER_UNEXPECTED":  (CATEGORY_METADATA, SEVERITY_WARNING),
-    "META_PARTITIONKEY_MISSING":   (CATEGORY_METADATA, SEVERITY_ERROR),
-    "META_PARTITIONKEY_MISMATCH":  (CATEGORY_METADATA, SEVERITY_ERROR),
-    "META_PARTITIONKEY_UNEXPECTED": (CATEGORY_METADATA, SEVERITY_WARNING),
-    "META_REQUIRED_MISSING":       (CATEGORY_METADATA, SEVERITY_ERROR),
-    "META_REQUIRED_UNEXPECTED":    (CATEGORY_METADATA, SEVERITY_WARNING),
+    # --- Workload-dependent errors -----------------------------------------
+    "WRK_ROOT_TYPE_MISMATCH":      CLASS_WORKLOAD,
+    "WRK_MISSING_ELEMENT":         CLASS_WORKLOAD,
+    "WRK_CONTAINER_KIND_MISMATCH": CLASS_WORKLOAD,
+    "WRK_PARTITIONKEY_MISSING":    CLASS_WORKLOAD,
+    "WRK_REQUIRED_MISSING":        CLASS_WORKLOAD,
 
-    # --- Fallbacks --------------------------------------------------------
-    "ENGINE_ERROR":                (CATEGORY_STRUCTURE, SEVERITY_ERROR),
-    "LEGACY":                      (CATEGORY_STRUCTURE, SEVERITY_INFO),
+    # --- Complications -----------------------------------------------------
+    "COM_USELESS_NESTING": CLASS_COMPLICATION,
+    "COM_EXTRA_ELEMENT":   CLASS_COMPLICATION,
+    "COM_NAME_TYPO":       CLASS_COMPLICATION,
+    "COM_ROOT_NAME_DIFF":  CLASS_COMPLICATION,
+
+    # --- Outside the taxonomy ----------------------------------------------
+    "ENGINE_ERROR": CLASS_INTERNAL,
+    "LEGACY":       CLASS_LEGACY,
 }
 
 
@@ -99,10 +90,14 @@ class Feedback:
     code: str
     message: str
     category: str
-    severity: str
     line: Optional[int] = None
     col: Optional[int] = None
     path: Optional[str] = None
+
+    @property
+    def is_error(self) -> bool:
+        """True if this finding makes the answer incorrect."""
+        return self.category in ERROR_CLASSES
 
     def to_dict(self) -> dict:
         """JSON-serializable form, dropping empty location fields."""
@@ -119,17 +114,19 @@ class Feedback:
 
 
 def make(code: str, message: str, line: int = None, col: int = None, path: str = None) -> Feedback:
-    """Build a :class:`Feedback`, looking up category/severity from the taxonomy.
+    """Build a :class:`Feedback`, looking up its class in the taxonomy.
 
-    An unknown code degrades gracefully to a structure-level error rather than
-    raising, so a typo'd code never crashes an evaluation.
+    This is the only way findings are created, so no part of the system can
+    decide on its own whether a problem is an error or a complication. An
+    unregistered code raises ``ValueError``; the evaluation entry point turns
+    that into an ENGINE_ERROR finding.
     """
-    category, severity = TAXONOMY.get(code, (CATEGORY_STRUCTURE, SEVERITY_ERROR))
+    if code not in TAXONOMY:
+        raise ValueError(f"Unknown taxonomy code: {code}")
     return Feedback(
         code=code,
         message=message,
-        category=category,
-        severity=severity,
+        category=TAXONOMY[code],
         line=line,
         col=col,
         path=path,

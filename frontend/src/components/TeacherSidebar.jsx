@@ -173,7 +173,7 @@ export default function TeacherSidebar({
         {schemaForm.image && <div className="file-note">{schemaForm.image.name}</div>}
         <div className="file-note">
           {editingSchemaId ? 'Leave empty to keep current image. ' : ''}
-          JPG, PNG, WebP, or GIF — max 5 MB.
+          JPG, PNG— max 5 MB.
         </div>
         <div className="row-actions">
           <button className="secondary-btn" type="button" onClick={resetSchemaForm}>Reset</button>

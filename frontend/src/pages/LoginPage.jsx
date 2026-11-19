@@ -4,6 +4,7 @@ export default function LoginPage({ onLogin }) {
   const [username,    setUsername]    = useState('');
   const [password,    setPassword]    = useState('');
   const [role,        setRole]        = useState('student');
+  const [teacherInviteCode, setTeacherInviteCode] = useState('');
   const [isRegister,  setIsRegister]  = useState(false);
   const [error,       setError]       = useState('');
   const [loading,     setLoading]     = useState(false);
@@ -22,7 +23,12 @@ export default function LoginPage({ onLogin }) {
         const res = await fetch('/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, role }),
+          body: JSON.stringify({
+            username,
+            password,
+            role,
+            ...(role === 'teacher' && { teacher_invite_code: teacherInviteCode }),
+          }),
         });
         if (!res.ok) {
           const detail = await res.json().catch(() => null);
@@ -43,6 +49,8 @@ export default function LoginPage({ onLogin }) {
       }
       const data = await res.json();
       onLogin(data.access_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -51,12 +59,11 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="auth-shell">
       <section className="auth-panel">
-        <div className="brand-mark">Query Modeling</div>
+        <div className="brand-mark">Aggregate Lab</div>
         <div>
-          <h1>Build exercises, collect answers, review every attempt.</h1>
+          <h1>Design aggregates around the queries they need to serve.</h1>
           <p>
-            Teachers create visual query exercises with hints. Students submit
-            answers while the system keeps a clean answer history.
+            Practise NoSQL schema design through hands-on exercises. Build an aggregate for a given data model and query workload, then get clear feedback on its syntax, structure, and fit for the workload.
           </p>
         </div>
       </section>
@@ -92,10 +99,28 @@ export default function LoginPage({ onLogin }) {
             {isRegister && (
               <label className="field">
                 Role
-                <select value={role} onChange={e => setRole(e.target.value)}>
+                <select
+                  value={role}
+                  onChange={e => {
+                    setRole(e.target.value);
+                    setTeacherInviteCode('');
+                  }}
+                >
                   <option value="student">Student</option>
                   <option value="teacher">Teacher</option>
                 </select>
+              </label>
+            )}
+            {isRegister && role === 'teacher' && (
+              <label className="field">
+                Teacher invite code
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={teacherInviteCode}
+                  onChange={e => setTeacherInviteCode(e.target.value)}
+                  required
+                />
               </label>
             )}
             {error && <div className="error-box">{error}</div>}

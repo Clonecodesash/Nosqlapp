@@ -1,9 +1,12 @@
 """Auth endpoints: register, login, current user."""
 
+import hmac
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import TEACHER_INVITE_CODE
 from auth import (
     create_access_token,
     get_current_user,
@@ -20,13 +23,22 @@ router = APIRouter()
 
 @router.post("/api/register", response_model=UserOut)
 async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user."""
+    """Register a student or a teacher with the configured invite code."""
     db_user = await get_user_by_username(db, user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
 
+    role = user.role
+    if role.value == "teacher":
+        if (
+            not TEACHER_INVITE_CODE
+            or not user.teacher_invite_code
+            or not hmac.compare_digest(user.teacher_invite_code, TEACHER_INVITE_CODE)
+        ):
+            raise HTTPException(status_code=403, detail="A valid teacher invite code is required")
+
     hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed_password, role=user.role)
+    new_user = User(username=user.username, hashed_password=hashed_password, role=role)
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)

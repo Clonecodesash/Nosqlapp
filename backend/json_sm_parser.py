@@ -332,7 +332,7 @@ def _validate_schema_grammar(text):
                     parse_container()
                 else:
                     fail(
-                        "SYN_COLON_NO_CONTAINER",
+                        "SYN_UNEXPECTED_TOKEN",
                         f"':' after '{tok[1]}' must be followed by '{{' or '[' to open a nested "
                         f"object or collection, but found {_describe(after)}.",
                         after,
@@ -348,7 +348,7 @@ def _validate_schema_grammar(text):
         elif ttype in ('{', '['):
             parse_container()  # anonymous object / collection
         elif ttype == ',':
-            fail("SYN_LEADING_COMMA",
+            fail("SYN_TRAILING_COMMA",
                  "Unexpected ',' - an attribute name is missing before this comma.", tok)
         elif ttype in ('}', ']'):
             fail("SYN_UNEXPECTED_TOKEN",
@@ -391,7 +391,7 @@ def _validate_schema_grammar(text):
                          "Trailing ',' before the closing bracket - remove it or add another attribute.",
                          comma)
                 if nxt[0] == ',':
-                    fail("SYN_DOUBLE_COMMA",
+                    fail("SYN_TRAILING_COMMA",
                          "Two commas in a row - an attribute is missing between them.", nxt)
                 continue
 
